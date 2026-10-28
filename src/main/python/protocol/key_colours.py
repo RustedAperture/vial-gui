@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
+import re
 import struct
 from collections import namedtuple
 
@@ -12,6 +13,8 @@ KC_PROTOCOL_VERSION = 1
 
 VIALRGB_GET_NUMBER_LEDS = 0x43
 VIALRGB_GET_LED_INFO = 0x44
+
+COLOUR_RE = re.compile(r"^#[0-9a-fA-F]{6}\Z")
 
 LedInfo = namedtuple("LedInfo", "x y flags row col")
 
@@ -119,6 +122,8 @@ class ProtocolKeyColours(BaseProtocol):
             if data["version"] != 1:
                 return False
             layers = data["layers"]
+            if not isinstance(layers, list) or any(not isinstance(layer, list) for layer in layers):
+                return False
             if len(layers) != self.key_colours_layers:
                 return False
             parsed = []
@@ -130,7 +135,7 @@ class ProtocolKeyColours(BaseProtocol):
                     if c is None:
                         row.append(None)
                     else:
-                        if not isinstance(c, str) or len(c) != 7 or c[0] != "#":
+                        if not isinstance(c, str) or not COLOUR_RE.match(c):
                             return False
                         row.append((int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)))
                 parsed.append(row)

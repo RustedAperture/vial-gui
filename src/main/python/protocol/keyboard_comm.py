@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 import struct
 import json
+import logging
 import lzma
 from collections import OrderedDict
 
@@ -406,6 +407,8 @@ class Keyboard(ProtocolMacro, ProtocolDynamic, ProtocolTapDance, ProtocolCombo, 
         data["key_override"] = self.save_key_override()
         data["alt_repeat_key"] = self.save_alt_repeat_key()
         data["settings"] = self.settings
+        if self.key_colours_supported:
+            data["key_colours"] = self.key_colours_to_json()
 
         return json.dumps(data).encode("utf-8")
 
@@ -434,6 +437,11 @@ class Keyboard(ProtocolMacro, ProtocolDynamic, ProtocolTapDance, ProtocolCombo, 
         self.restore_combo(data.get("combo", []))
         self.restore_key_override(data.get("key_override", []))
         self.restore_alt_repeat_key(data.get("alt_repeat_key", []))
+
+        if "key_colours" in data and self.key_colours_supported:
+            if not self.key_colours_from_json(data["key_colours"]):
+                logging.getLogger(__name__).warning(
+                    "key colours in the saved layout do not match this keyboard, skipping them")
 
         for qsid, value in data.get("settings", dict()).items():
             from editor.qmk_settings import QmkSettings

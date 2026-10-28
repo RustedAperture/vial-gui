@@ -51,4 +51,12 @@ Serve it locally and open in Chrome (Firefox has no WebHID):
 
 The build uses `SharedArrayBuffer`, so the server must send `Cross-Origin-Opener-Policy: same-origin`
 and `Cross-Origin-Embedder-Policy: require-corp`; `serve-web.py` does. Hosts that can't set headers
-(e.g. GitHub Pages) need a service-worker shim such as coi-serviceworker.
+(e.g. GitHub Pages) need a service-worker shim; see "Publish to GitHub Pages" below.
+
+## Publish to GitHub Pages
+
+    dev/publish-pages.sh         # pushes the current web build to the gh-pages branch
+
+Live at https://rustedaperture.github.io/vial-gui/ (Chrome or Edge). The page loads
+`dev/web/coi-serviceworker.min.js` (v0.1.7, MIT, pinned by SHA-256) to add the COOP/COEP headers that
+Pages can't send; the first visit reloads once to activate it. `gh-pages` holds only the latest build.

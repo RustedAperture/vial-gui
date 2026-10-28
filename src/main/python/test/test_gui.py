@@ -155,6 +155,9 @@ class VirtualKeyboard:
         elif msg[0] == CMD_VIA_KEYMAP_GET_BUFFER:
             offset, size = struct.unpack_from(">HB", msg[1:])
             return msg[0:1] + self.get_keymap_buffer()[offset:offset+size]
+        elif msg[0] == 0x55:
+            # key colours: stock firmware leaves it to VIA, which answers id_unhandled
+            return b"\xFF"
         raise RuntimeError("unknown command for VIA protocol 0x{:02X}".format(msg[0]))
 
 
@@ -213,6 +216,14 @@ def test_gui_startup(qtbot):
     mw, vk = prepare(qtbot, FAKE_KEYBOARD)
     assert mw.combobox_devices.currentText() == "Vial Testing Ltd Test Keyboard"
     assert mw.combobox_devices.count() == 1
+
+
+def test_no_key_colours_tab_on_stock_keyboard(qtbot):
+    mw, vk = prepare(qtbot, FAKE_KEYBOARD)
+    labels = [mw.tabs.tabText(i) for i in range(mw.tabs.count())]
+    assert "Keymap" in labels
+    assert "Key colours" not in labels
+    assert mw.key_colours_editor.device is mw.autorefresh.current_device
 
 
 def test_about_keyboard(qtbot):

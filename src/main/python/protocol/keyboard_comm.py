@@ -411,6 +411,8 @@ class Keyboard(ProtocolMacro, ProtocolDynamic, ProtocolTapDance, ProtocolCombo, 
         data["settings"] = self.settings
         if self.key_colours_supported:
             data["key_colours"] = self.key_colours_to_json()
+        if self.slider_supported:
+            data["slider_targets"] = self.slider_targets_to_json()
 
         return json.dumps(data).encode("utf-8")
 
@@ -440,10 +442,20 @@ class Keyboard(ProtocolMacro, ProtocolDynamic, ProtocolTapDance, ProtocolCombo, 
         self.restore_key_override(data.get("key_override", []))
         self.restore_alt_repeat_key(data.get("alt_repeat_key", []))
 
+        log = logging.getLogger(__name__)
         if "key_colours" in data and self.key_colours_supported:
-            if not self.key_colours_from_json(data["key_colours"]):
-                logging.getLogger(__name__).warning(
-                    "key colours in the saved layout do not match this keyboard, skipping them")
+            try:
+                if not self.key_colours_from_json(data["key_colours"]):
+                    log.warning("key colours in the saved layout do not match this keyboard, skipping them")
+            except RuntimeError as e:
+                log.warning("keyboard rejected the saved key colours: %s", e)
+
+        if "slider_targets" in data and self.slider_supported:
+            try:
+                if not self.slider_targets_from_json(data["slider_targets"]):
+                    log.warning("slider targets in the saved layout are invalid, skipping them")
+            except RuntimeError as e:
+                log.warning("keyboard rejected the saved slider targets: %s", e)
 
         for qsid, value in data.get("settings", dict()).items():
             from editor.qmk_settings import QmkSettings

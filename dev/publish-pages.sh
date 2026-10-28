@@ -20,6 +20,11 @@ touch "$SITE/.nojekyll"
 # Served from /<repo>/, so links must be relative; the service worker script must load first.
 sed -i 's|href="/icon.png"|href="icon.png"|; s|<head>|<head>\n<script src="coi-serviceworker.min.js"></script>|' "$SITE/index.html"
 grep -q 'coi-serviceworker.min.js' "$SITE/index.html" || { echo "failed to patch index.html" >&2; exit 1; }
+# On the first visit the page isn't isolated until the service worker reloads it. Starting the app before
+# then fails with "SharedArrayBuffer is not defined", and the page's alert() blocks that reload, so only
+# load the app once isolated.
+perl -0pi -e 's|<script src="(main-[0-9a-f]+\.js)"></script>|<script>\n(function () {\n    if (window.crossOriginIsolated) {\n        var s = document.createElement("script");\n        s.src = "$1";\n        document.body.appendChild(s);\n    } else if (!("serviceWorker" in navigator)) {\n        alert("This browser cannot run Vial Web. Please use Chrome or Edge.");\n    }\n    // otherwise coi-serviceworker reloads the page once it is active\n})();\n</script>|' "$SITE/index.html"
+grep -q 'window.crossOriginIsolated' "$SITE/index.html" || { echo "failed to patch the app loader in index.html" >&2; exit 1; }
 
 COMMIT="$(git -C "$ROOT" rev-parse --short HEAD)"
 git -C "$SITE" init -q -b gh-pages

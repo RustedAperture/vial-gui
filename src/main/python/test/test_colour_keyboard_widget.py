@@ -69,3 +69,44 @@ def test_move_without_press_paints_nothing(qtbot):
 def test_renders(qtbot):
     w = make_widget(qtbot)
     assert not w.grab().isNull()
+
+
+def test_layout_choice_selects_option(qtbot):
+    keys = []
+    kle = [["0,0\n\n\n0,0"], [{"x": 3}, "0,1\n\n\n0,1"]]
+    for key in KleSerial().deserialize(kle).keys:
+        row, col = key.labels[0].split(",")
+        key.row, key.col = int(row), int(col)
+        idx, opt = key.labels[8].split(",")
+        key.layout_index, key.layout_option = int(idx), int(opt)
+        keys.append(key)
+    leds = [LedInfo(0, 0, 4, 0, 0), LedInfo(10, 0, 4, 0, 1)]
+    for choice, expected in ((0, [0]), (1, [1])):
+        w = ColourKeyboardWidget()
+        qtbot.addWidget(w)
+        w.set_keyboard(keys, leds, lambda idx, c=choice: c)
+        w.resize(w.sizeHint())
+        painted = []
+        w.stroke_painted.connect(painted.extend)
+        assert len(w._key_widgets) == 1
+        # the chosen alternative is shifted to the same place
+        assert w._key_widgets[0].polygon.boundingRect().topLeft().x() == w.padding
+        pos = w._key_widgets[0].polygon.boundingRect().center().toPoint()
+        QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, pos)
+        QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, pos)
+        assert painted == expected
+
+
+def test_edge_led_dot_paintable(qtbot):
+    w = ColourKeyboardWidget()
+    qtbot.addWidget(w)
+    leds = [LedInfo(i * 20, 0, 4, 0, i) for i in range(3)] + [LedInfo(112, 32, 2, 0xFF, 0xFF)]
+    w.set_keyboard(make_keys(), leds)
+    w.resize(w.sizeHint())
+    painted = []
+    w.stroke_painted.connect(painted.extend)
+    pos = w._dots[0][1].toPoint()
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, pos)
+    move(w, pos + QPoint(1, 1))
+    QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, pos)
+    assert painted == [3]

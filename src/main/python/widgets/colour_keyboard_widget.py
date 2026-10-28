@@ -8,6 +8,7 @@ from widgets.keyboard_widget import KeyWidget
 LED_NO_KEY = 0xFF
 LED_X_MAX = 224
 LED_Y_MAX = 64
+DOT_HIT_RADIUS = 8
 
 
 class ColourKeyboardWidget(QWidget):
@@ -27,10 +28,12 @@ class ColourKeyboardWidget(QWidget):
         self._key_led = []       # LED index per key widget, or None
         self._dots = []          # (led index, QPointF)
         self._size = QSize(0, 0)
+        self.layout_choice = lambda idx: 0
         self._stroking = False
         self._stroke_seen = set()
 
-    def set_keyboard(self, keys, leds):
+    def set_keyboard(self, keys, leds, layout_choice=None):
+        self.layout_choice = layout_choice or (lambda idx: 0)
         self.keys = list(keys)
         self.leds = list(leds)
         if len(self.colours) != len(self.leds):
@@ -48,14 +51,31 @@ class ColourKeyboardWidget(QWidget):
             if led.row != LED_NO_KEY:
                 by_pos.setdefault((led.row, led.col), i)
 
-        widgets = []
+        candidates = []
         for key in self.keys:
             if key.decal or key.row is None:
                 continue
-            # only the default option of each layout choice, so alternatives do not overlap
-            if key.layout_index != -1 and key.layout_option != 0:
-                continue
-            widgets.append(KeyWidget(key, scale))
+            candidates.append(KeyWidget(key, scale))
+
+        # top-left of every layout option, so a chosen option lands where option 0 is
+        opt_x, opt_y = {}, {}
+        for w in candidates:
+            if w.desc.layout_index != -1:
+                k = (w.desc.layout_index, w.desc.layout_option)
+                r = w.polygon.boundingRect()
+                opt_x[k] = min(opt_x.get(k, 1e6), r.left())
+                opt_y[k] = min(opt_y.get(k, 1e6), r.top())
+
+        widgets = []
+        for w in candidates:
+            idx, opt = w.desc.layout_index, w.desc.layout_option
+            if idx == -1:
+                widgets.append(w)
+            elif opt == self.layout_choice(idx):
+                sx = opt_x[(idx, opt)] - opt_x.get((idx, 0), opt_x[(idx, opt)])
+                sy = opt_y[(idx, opt)] - opt_y.get((idx, 0), opt_y[(idx, opt)])
+                w.update_position(scale, -sx, -sy)
+                widgets.append(w)
 
         if widgets:
             left = min(w.polygon.boundingRect().left() for w in widgets)
@@ -63,7 +83,7 @@ class ColourKeyboardWidget(QWidget):
         else:
             left = top = 0
         for w in widgets:
-            w.update_position(scale, self.padding - left, self.padding - top)
+            w.update_position(scale, w.shift_x - left + self.padding, w.shift_y - top + self.padding)
 
         self._key_widgets = widgets
         self._key_led = [by_pos.get((w.desc.row, w.desc.col)) for w in widgets]
@@ -136,6 +156,11 @@ class ColourKeyboardWidget(QWidget):
         qp.end()
 
     def _led_at(self, pos):
+        # dots are drawn on top of keys, so they win
+        p = QPointF(pos)
+        for led, point in self._dots:
+            if (p - point).manhattanLength() <= DOT_HIT_RADIUS * 1.5:
+                return led
         for widget, led in zip(self._key_widgets, self._key_led):
             if led is not None and widget.polygon.containsPoint(QPointF(pos), Qt.OddEvenFill):
                 return led

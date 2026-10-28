@@ -18,6 +18,7 @@ from constants import WINDOW_WIDTH, WINDOW_HEIGHT
 from widgets.editor_container import EditorContainer
 from editor.firmware_flasher import FirmwareFlasher
 from editor.key_colours import KeyColoursEditor
+from editor.slider_targets import SliderTargetsEditor
 from editor.key_override import KeyOverride
 from protocol.keyboard_comm import ProtocolError
 from editor.keymap_editor import KeymapEditor
@@ -89,9 +90,11 @@ class MainWindow(QMainWindow):
         self.key_colours_editor = KeyColoursEditor(self.layout_editor)
         self.key_colours_editor.save_requested.connect(self.on_layout_save)
         self.key_colours_editor.load_requested.connect(self.on_layout_load)
+        self.slider_targets_editor = SliderTargetsEditor()
 
         self.editors = [(self.keymap_editor, "Keymap"), (self.layout_editor, "Layout"), (self.macro_recorder, "Macros"),
                         (self.rgb_configurator, "Lighting"), (self.key_colours_editor, "Key colours"),
+                        (self.slider_targets_editor, "Slider"),
                         (self.tap_dance, "Tap Dance"), (self.combos, "Combos"),
                         (self.key_override, "Key Overrides"), (self.alt_repeat_key, "Alt Repeat Key"),
                         (self.qmk_settings, "QMK Settings"), (self.matrix_tester, "Matrix tester"),
@@ -343,7 +346,8 @@ class MainWindow(QMainWindow):
 
         for e in [self.layout_editor, self.keymap_editor, self.firmware_flasher, self.macro_recorder,
                   self.tap_dance, self.combos, self.key_override, self.alt_repeat_key,
-                  self.qmk_settings, self.matrix_tester, self.rgb_configurator, self.key_colours_editor]:
+                  self.qmk_settings, self.matrix_tester, self.rgb_configurator, self.key_colours_editor,
+                  self.slider_targets_editor]:
             e.rebuild(self.autorefresh.current_device)
 
     def refresh_tabs(self):

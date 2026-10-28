@@ -158,6 +158,9 @@ class VirtualKeyboard:
         elif msg[0] == 0x55:
             # key colours: stock firmware leaves it to VIA, which answers id_unhandled
             return b"\xFF"
+        elif msg[0] == 0x56:
+            # slider targets: stock firmware leaves it to VIA, which answers id_unhandled
+            return b"\xFF"
         raise RuntimeError("unknown command for VIA protocol 0x{:02X}".format(msg[0]))
 
 
@@ -224,6 +227,14 @@ def test_no_key_colours_tab_on_stock_keyboard(qtbot):
     assert "Keymap" in labels
     assert "Key colours" not in labels
     assert mw.key_colours_editor.device is mw.autorefresh.current_device
+
+
+def test_no_slider_tab_on_stock_keyboard(qtbot):
+    mw, vk = prepare(qtbot, FAKE_KEYBOARD)
+    labels = [mw.tabs.tabText(i) for i in range(mw.tabs.count())]
+    assert "Keymap" in labels
+    assert "Slider" not in labels
+    assert mw.slider_targets_editor.device is mw.autorefresh.current_device
 
 
 def test_about_keyboard(qtbot):

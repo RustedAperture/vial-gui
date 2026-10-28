@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from kle_serial import Serial as KleSerial
 from protocol.key_colours import LedInfo
-from widgets.colour_keyboard_widget import ColourKeyboardWidget
+from widgets.colour_keyboard_widget import ColourKeyboardWidget, DOT_RADIUS
 
 
 def make_keys():
@@ -110,6 +110,38 @@ def test_edge_led_dot_paintable(qtbot):
     move(w, pos + QPoint(1, 1))
     QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, pos)
     assert painted == [3]
+
+
+def test_edge_led_dots_sit_outside_the_keys(qtbot):
+    # side strips like the GMMK Numpad's: x = 0 (left) and x = 224 (right), full height
+    w = ColourKeyboardWidget()
+    qtbot.addWidget(w)
+    leds = [LedInfo(i * 20, 0, 4, 0, i) for i in range(3)]
+    leds += [LedInfo(0, y, 2, 0xFF, 0xFF) for y in (0, 32, 64)]
+    leds += [LedInfo(224, y, 2, 0xFF, 0xFF) for y in (0, 32, 64)]
+    w.set_keyboard(make_keys(), leds)
+    keys = w._key_widgets[0].polygon.boundingRect()
+    for k in w._key_widgets[1:]:
+        keys = keys.united(k.polygon.boundingRect())
+    gap = DOT_RADIUS * 2
+    dots = dict(w._dots)
+    for led in (3, 4, 5):
+        assert dots[led].x() <= keys.left() - gap
+    for led in (6, 7, 8):
+        assert dots[led].x() >= keys.right() + gap
+    # side strips span the keys' height rather than sticking out above and below
+    for led in (3, 4, 5, 6, 7, 8):
+        assert keys.top() <= dots[led].y() <= keys.bottom()
+    size = w.sizeHint()
+    for p in dots.values():
+        assert DOT_RADIUS <= p.x() <= size.width() - DOT_RADIUS
+        assert DOT_RADIUS <= p.y() <= size.height() - DOT_RADIUS
+
+
+def test_no_edge_leds_no_extra_margin(qtbot):
+    w = make_widget(qtbot)
+    keys = w._key_widgets[0].polygon.boundingRect()
+    assert keys.left() == w.padding
 
 
 def test_fast_drag_paints_every_key_crossed(qtbot):

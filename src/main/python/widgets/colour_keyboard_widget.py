@@ -11,6 +11,7 @@ LED_NO_KEY = 0xFF
 LED_X_MAX = 224
 LED_Y_MAX = 64
 DOT_HIT_RADIUS = 8
+DOT_RADIUS = 4
 
 
 class ColourKeyboardWidget(QWidget):
@@ -81,13 +82,23 @@ class ColourKeyboardWidget(QWidget):
                 w.update_position(scale, -sx, -sy)
                 widgets.append(w)
 
+        # LEDs that aren't under a key (side strips, underglow) are drawn around the keys, half a key away;
+        # only the sides that have such LEDs get the extra room
+        edge = [led for led in self.leds if led.row == LED_NO_KEY]
+        has_sides = any(led.x in (0, LED_X_MAX) for led in edge)
+        has_ends = any(led.x not in (0, LED_X_MAX) and led.y in (0, LED_Y_MAX) for led in edge)
+        half_key = min(w.polygon.boundingRect().width() for w in widgets) / 2 if widgets else 0
+        margin_x = half_key + DOT_RADIUS if has_sides else 0
+        margin_y = half_key + DOT_RADIUS if has_ends else (DOT_RADIUS if has_sides else 0)
+
         if widgets:
             left = min(w.polygon.boundingRect().left() for w in widgets)
             top = min(w.polygon.boundingRect().top() for w in widgets)
         else:
             left = top = 0
         for w in widgets:
-            w.update_position(scale, w.shift_x - left + self.padding, w.shift_y - top + self.padding)
+            w.update_position(scale, w.shift_x - left + self.padding + margin_x,
+                              w.shift_y - top + self.padding + margin_y)
 
         self._key_widgets = widgets
         self._key_led = [by_pos.get((w.desc.row, w.desc.col)) for w in widgets]
@@ -101,14 +112,29 @@ class ColourKeyboardWidget(QWidget):
         else:
             box = QRectF(0, 0, 0, 0)
         self._box = box
+        # dots sit half a key from the keys; DOT_RADIUS more of canvas keeps them off the widget's edge
+        dot_box = box.adjusted(-half_key, -half_key, half_key, half_key)
+        canvas = box.adjusted(-margin_x, -margin_y, margin_x, margin_y)
         self._dots = []
         for i, led in enumerate(self.leds):
             if led.row == LED_NO_KEY:
-                px = box.left() + box.width() * min(led.x, LED_X_MAX) / LED_X_MAX
-                py = box.top() + box.height() * min(led.y, LED_Y_MAX) / LED_Y_MAX
+                x, y = min(led.x, LED_X_MAX), min(led.y, LED_Y_MAX)
+                px = box.left() + box.width() * x / LED_X_MAX
+                py = box.top() + box.height() * y / LED_Y_MAX
+                # LEDs on the outer edge sit half a key outside the keys: side strips move out
+                # sideways only, so they still span the keys' height; top/bottom strips move vertically
+                side = x in (0, LED_X_MAX)
+                if x == 0:
+                    px = dot_box.left()
+                elif x == LED_X_MAX:
+                    px = dot_box.right()
+                if not side and y == 0:
+                    py = dot_box.top()
+                elif not side and y == LED_Y_MAX:
+                    py = dot_box.bottom()
                 self._dots.append((i, QPointF(px, py)))
 
-        self._size = QSize(round(box.right() + self.padding), round(box.bottom() + self.padding))
+        self._size = QSize(round(canvas.right() + self.padding), round(canvas.bottom() + self.padding))
         self.updateGeometry()
         self.update()
 
@@ -158,7 +184,7 @@ class ColourKeyboardWidget(QWidget):
                 qp.setBrush(QBrush(pal.color(QPalette.ButtonText), Qt.BDiagPattern))
             else:
                 qp.setBrush(QBrush(QColor(*colour), Qt.SolidPattern))
-            qp.drawEllipse(point, 4, 4)
+            qp.drawEllipse(point, DOT_RADIUS, DOT_RADIUS)
         qp.end()
 
     def _led_at(self, pos):

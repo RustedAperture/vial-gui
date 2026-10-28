@@ -10,8 +10,8 @@ from widgets.keyboard_widget import KeyWidget
 LED_NO_KEY = 0xFF
 LED_X_MAX = 224
 LED_Y_MAX = 64
-DOT_HIT_RADIUS = 8
-DOT_RADIUS = 4
+DOT_HIT_RADIUS = 12
+DOT_RADIUS = 7
 
 
 class ColourKeyboardWidget(QWidget):

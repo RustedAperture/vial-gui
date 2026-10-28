@@ -7,7 +7,10 @@ from protocol.base_protocol import BaseProtocol
 
 CMD_SLIDER_TARGETS = 0x56
 ST_GET_INFO, ST_GET, ST_SET, ST_SET_COUNT, ST_ERR = 0x01, 0x02, 0x03, 0x04, 0xFF
-ST_PROTOCOL_VERSION = 1
+ST_GET_FLASH, ST_SET_FLASH = 0x05, 0x06
+ST_PROTOCOL_VERSIONS = (1, 2)
+ST_FLASH_VERSION = 2      # first version with a selectable flash mask
+ST_FLASH_MAX_LEDS = 32
 ST_NAME_LEN = 12
 ST_MAX_CONTROL = 127
 
@@ -26,6 +29,8 @@ class ProtocolSliderTargets(BaseProtocol):
     slider_name_max = 0
     slider_targets = ()
     slider_current = 0
+    slider_flash_supported = False
+    slider_flash_mask = 0
 
     def reload_slider_targets(self):
         self.slider_supported = False
@@ -33,13 +38,16 @@ class ProtocolSliderTargets(BaseProtocol):
         self.slider_name_max = 0
         self.slider_targets = []
         self.slider_current = 0
+        self.slider_flash_supported = False
+        self.slider_flash_mask = 0
 
         if not getattr(self, "lighting_vialrgb", False):
             return
 
         data = self.usb_send(self.dev, struct.pack("BB", CMD_SLIDER_TARGETS, ST_GET_INFO), retries=20)
-        if data[0] != CMD_SLIDER_TARGETS or data[1] != ST_GET_INFO or data[2] != ST_PROTOCOL_VERSION:
+        if data[0] != CMD_SLIDER_TARGETS or data[1] != ST_GET_INFO or data[2] not in ST_PROTOCOL_VERSIONS:
             return
+        version = data[2]
         maximum, count, current, name_max = data[3], data[4], data[5], data[6]
 
         targets = []
@@ -51,11 +59,20 @@ class ProtocolSliderTargets(BaseProtocol):
             targets.append(SliderTarget(data[3], (data[4], data[5], data[6]),
                                         raw.decode("ascii", errors="replace")))
 
+        mask = 0
+        if version >= ST_FLASH_VERSION:
+            data = self.usb_send(self.dev, struct.pack("BB", CMD_SLIDER_TARGETS, ST_GET_FLASH), retries=20)
+            if data[1] == ST_ERR:
+                raise RuntimeError("failed reading the slider flash lights")
+            mask = struct.unpack("<I", bytes(data[2:6]))[0]
+
         self.slider_max = maximum
         self.slider_name_max = name_max
         self.slider_targets = targets
         self.slider_current = current
         self.slider_supported = True
+        self.slider_flash_supported = version >= ST_FLASH_VERSION
+        self.slider_flash_mask = mask
 
     def _validate_slider_targets(self, targets):
         if not isinstance(targets, (list, tuple)) or not 1 <= len(targets) <= self.slider_max:
@@ -97,14 +114,33 @@ class ProtocolSliderTargets(BaseProtocol):
         if self.slider_current >= len(encoded):
             self.slider_current = 0
 
+    def set_slider_flash_mask(self, mask):
+        """ Bit i set = LED i flashes when the slider target changes. """
+        if not _is_int(mask) or not 0 <= mask < (1 << ST_FLASH_MAX_LEDS):
+            raise ValueError("slider flash mask must be a 32-bit unsigned int")
+        if not self.slider_flash_supported:
+            raise RuntimeError("the keyboard can't choose which lights flash")
+        data = self.usb_send(self.dev, struct.pack("<BBI", CMD_SLIDER_TARGETS, ST_SET_FLASH, mask), retries=20)
+        if data[1] == ST_ERR:
+            raise RuntimeError("failed setting the slider flash lights")
+        self.slider_flash_mask = mask
+
+    def _slider_flash_led_limit(self):
+        leds = len(getattr(self, "leds", ()))
+        return min(leds, ST_FLASH_MAX_LEDS) if leds else ST_FLASH_MAX_LEDS
+
     def slider_targets_to_json(self):
-        return {
+        data = {
             "version": 1,
             "targets": [
                 {"control": t.control, "colour": "#{:02x}{:02x}{:02x}".format(*t.colour), "name": t.name}
                 for t in self.slider_targets
             ]
         }
+        if self.slider_flash_supported:
+            data["flash_leds"] = [i for i in range(self._slider_flash_led_limit())
+                                  if self.slider_flash_mask & (1 << i)]
+        return data
 
     def slider_targets_from_json(self, data):
         try:
@@ -122,8 +158,17 @@ class ProtocolSliderTargets(BaseProtocol):
                                            (int(colour[1:3], 16), int(colour[3:5], 16), int(colour[5:7], 16)),
                                            e["name"]))
             self._validate_slider_targets(parsed)
+            mask = None
+            if "flash_leds" in data:
+                leds = data["flash_leds"]
+                limit = self._slider_flash_led_limit()
+                if not isinstance(leds, list) or any(not _is_int(i) or not 0 <= i < limit for i in leds):
+                    return False
+                mask = sum(1 << i for i in set(leds))
         except (KeyError, TypeError, ValueError, IndexError):
             return False
 
         self.set_slider_targets(parsed)
+        if mask is not None and self.slider_flash_supported:
+            self.set_slider_flash_mask(mask)
         return True

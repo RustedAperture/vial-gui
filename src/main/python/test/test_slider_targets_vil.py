@@ -2,12 +2,13 @@ import json
 import unittest
 from unittest import mock
 
-from test.test_slider_targets_protocol import make_kb, expect_reload, expect_set, expect_count, TARGETS
+from test.test_slider_targets_protocol import make_kb, expect_reload, expect_set, expect_count, expect_flash, \
+    TARGETS
 
 
-def vil_kb():
+def vil_kb(flash=None):
     kb, dev = make_kb()
-    expect_reload(dev, [(62, (255, 255, 255), "Slider"), (7, (1, 2, 3), "Vol")])
+    expect_reload(dev, [(62, (255, 255, 255), "Slider"), (7, (1, 2, 3), "Vol")], flash=flash)
     kb.reload_slider_targets()
     kb.key_colours_supported = False
     kb.keyboard_id = 1
@@ -105,3 +106,25 @@ class TestSliderTargetsVil(unittest.TestCase):
                 kb.restore_layout(data)
         dev.finish()
         ms.assert_called_once_with(5, 9)
+
+    def test_flash_leds_saved_and_restored(self):
+        kb, dev = vil_kb(flash=0b101)
+        data = json.loads(kb.save_layout().decode("utf-8"))
+        self.assertEqual(data["slider_targets"]["flash_leds"], [0, 2])
+        section = dict(data["slider_targets"], flash_leds=[1, 30])
+        expect_set(dev, 0, TARGETS[0])
+        expect_set(dev, 1, TARGETS[1])
+        expect_count(dev, 2)
+        expect_flash(dev, (1 << 30) | 2)
+        kb.restore_layout(vil(kb, section))
+        dev.finish()
+        self.assertEqual(kb.slider_flash_mask, (1 << 30) | 2)
+
+    def test_old_file_without_flash_leaves_mask(self):
+        kb, dev = vil_kb(flash=0b101)
+        expect_set(dev, 0, TARGETS[0])
+        expect_set(dev, 1, TARGETS[1])
+        expect_count(dev, 2)
+        kb.restore_layout(vil(kb, good()))
+        dev.finish()
+        self.assertEqual(kb.slider_flash_mask, 0b101)

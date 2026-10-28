@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from kle_serial import Serial as KleSerial
 from protocol.key_colours import LedInfo
-from widgets.colour_keyboard_widget import ColourKeyboardWidget, DOT_RADIUS
+from widgets.colour_keyboard_widget import ColourKeyboardWidget, DOT_RADIUS, DOT_HIT_RADIUS
 
 
 def make_keys():
@@ -180,3 +180,36 @@ def test_press_finishes_lost_stroke_first(qtbot):
     QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, centre(w, 1))
     QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, centre(w, 1))
     assert events == [("paint", [0]), "finish", ("paint", [1]), "finish"]
+
+
+def side_widget(qtbot):
+    w = ColourKeyboardWidget()
+    qtbot.addWidget(w)
+    leds = [LedInfo(i * 20, 0, 4, 0, i) for i in range(3)]
+    leds += [LedInfo(0, y, 2, 0xFF, 0xFF) for y in (0, 32, 64)]
+    w.set_keyboard(make_keys(), leds)
+    w.resize(w.sizeHint())
+    w.show()
+    return w
+
+
+def test_bigger_side_light_dots_stay_outside_keys(qtbot):
+    assert DOT_RADIUS >= 7
+    assert DOT_HIT_RADIUS >= DOT_RADIUS + 4
+    w = side_widget(qtbot)
+    keys = w._key_widgets[0].polygon.boundingRect()
+    for _, p in w._dots:
+        # the whole circle sits clear of the keys
+        assert p.x() + DOT_RADIUS < keys.left()
+
+
+def test_dot_hit_area_covers_the_circle(qtbot):
+    w = side_widget(qtbot)
+    painted = []
+    w.stroke_painted.connect(painted.extend)
+    pos = w._dots[1][1]
+    # click the circle's top edge, not its centre
+    edge = QPointF(pos.x(), pos.y() - DOT_RADIUS + 1).toPoint()
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, edge)
+    QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, edge)
+    assert painted == [4]

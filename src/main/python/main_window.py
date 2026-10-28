@@ -90,7 +90,7 @@ class MainWindow(QMainWindow):
         self.key_colours_editor = KeyColoursEditor(self.layout_editor)
         self.key_colours_editor.save_requested.connect(self.on_layout_save)
         self.key_colours_editor.load_requested.connect(self.on_layout_load)
-        self.slider_targets_editor = SliderTargetsEditor()
+        self.slider_targets_editor = SliderTargetsEditor(self.layout_editor)
 
         self.editors = [(self.keymap_editor, "Keymap"), (self.layout_editor, "Layout"), (self.macro_recorder, "Macros"),
                         (self.rgb_configurator, "Lighting"), (self.key_colours_editor, "Key colours"),

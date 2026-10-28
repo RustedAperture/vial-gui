@@ -110,3 +110,41 @@ def test_edge_led_dot_paintable(qtbot):
     move(w, pos + QPoint(1, 1))
     QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, pos)
     assert painted == [3]
+
+
+def test_fast_drag_paints_every_key_crossed(qtbot):
+    w = make_widget(qtbot)
+    painted = []
+    w.stroke_painted.connect(painted.extend)
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, centre(w, 0))
+    # one move event that jumps straight across key 1
+    move(w, centre(w, 2))
+    QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, centre(w, 2))
+    assert painted == [0, 1, 2]
+
+
+def test_move_without_button_finishes_lost_stroke(qtbot):
+    w = make_widget(qtbot)
+    painted, finished = [], []
+    w.stroke_painted.connect(painted.extend)
+    w.stroke_finished.connect(lambda: finished.append(1))
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, centre(w, 0))
+    # the release went elsewhere; the next move has no button held
+    QApplication.sendEvent(w, QMouseEvent(QEvent.MouseMove, QPointF(centre(w, 1)), Qt.NoButton, Qt.NoButton,
+                                          Qt.NoModifier))
+    assert painted == [0]
+    assert finished == [1]
+    move(w, centre(w, 2))
+    assert painted == [0]
+
+
+def test_press_finishes_lost_stroke_first(qtbot):
+    w = make_widget(qtbot)
+    events = []
+    w.stroke_painted.connect(lambda leds: events.append(("paint", leds)))
+    w.stroke_finished.connect(lambda: events.append("finish"))
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, centre(w, 0))
+    # release lost, then a new press
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, centre(w, 1))
+    QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, centre(w, 1))
+    assert events == [("paint", [0]), "finish", ("paint", [1]), "finish"]

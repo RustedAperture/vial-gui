@@ -210,3 +210,60 @@ def test_keyboard_errors_show_inline(qtbot):
     kb.fail = False
     stroke(editor, [1])
     assert editor.error_label.isHidden()
+
+
+def test_lost_release_does_not_merge_strokes_or_block_undo(qtbot):
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtTest import QTest
+    editor, kb = make_editor(qtbot)
+    w = editor.widget
+    w.resize(w.sizeHint())
+    editor.set_brush_colour(ORANGE)
+    pos = [w._key_widgets[i].polygon.boundingRect().center().toPoint() for i in range(3)]
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, pos[0])
+    # release lost; the next press must close the first stroke
+    QTest.mousePress(w, Qt.LeftButton, Qt.NoModifier, pos[1])
+    QTest.mouseRelease(w, Qt.LeftButton, Qt.NoModifier, pos[1])
+    assert not editor.in_stroke
+    editor.on_undo()
+    assert sets(kb)[-1] == ("set", 0, {1: None})
+    editor.on_undo()
+    assert sets(kb)[-1] == ("set", 0, {0: None})
+
+
+def test_write_error_survives_preview_ticks(qtbot):
+    editor, kb = make_editor(qtbot)
+    editor.activate()
+    kb.fail = True
+    editor.set_brush_colour(ORANGE)
+    stroke(editor, [0])
+    assert not editor.error_label.isHidden()
+    kb.fail = False
+    editor.on_preview_timer()
+    editor.set_layer(1)
+    assert kb.calls[-1] == ("preview", 1)
+    assert not editor.error_label.isHidden()
+    stroke(editor, [1])
+    assert editor.error_label.isHidden()
+    # a preview error alone is cleared by the next good preview
+    kb.fail = True
+    editor.on_preview_timer()
+    assert not editor.error_label.isHidden()
+    kb.fail = False
+    editor.on_preview_timer()
+    assert editor.error_label.isHidden()
+    editor.deactivate()
+
+
+def test_undo_error_survives_preview_ticks(qtbot):
+    editor, kb = make_editor(qtbot)
+    editor.set_brush_colour(ORANGE)
+    stroke(editor, [0])
+    editor.activate()
+    kb.fail = True
+    editor.on_undo()
+    assert not editor.error_label.isHidden()
+    kb.fail = False
+    editor.on_preview_timer()
+    assert not editor.error_label.isHidden()
+    editor.deactivate()

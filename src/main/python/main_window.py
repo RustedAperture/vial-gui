@@ -465,6 +465,9 @@ class MainWindow(QMainWindow):
         self.about_dialog.show()
 
     def closeEvent(self, e):
+        if self.current_tab is not None:
+            # turn keyboard preview off now rather than waiting for its timeout
+            self.current_tab.editor.deactivate()
         self.settings.setValue("size", self.size())
         self.settings.setValue("pos", self.pos())
         self.settings.setValue("maximized", self.isMaximized())

@@ -58,6 +58,7 @@ class KeyColoursEditor(BasicEditor):
         self.active = False
         self.in_stroke = False
         self.dlg_color = None
+        self.write_error = False   # error label shows a failed write
 
         self.preview_timer = QTimer()
         self.preview_timer.setInterval(PREVIEW_INTERVAL_MS)
@@ -184,6 +185,8 @@ class KeyColoursEditor(BasicEditor):
         super().rebuild(device)
         self.history = ColourHistory()
         self.in_stroke = False
+        self.write_error = False
+        self.error_label.hide()
         if not self.valid():
             self.keyboard = None
             self.preview_timer.stop()
@@ -245,16 +248,20 @@ class KeyColoursEditor(BasicEditor):
 
     # ---- keyboard I/O ----
 
-    def _call(self, fn, *args):
-        """ Run a keyboard call; on failure show the error inline instead of crashing. """
+    def _call(self, fn, *args, write=False):
+        """ Run a keyboard call; on failure show the error inline instead of crashing.
+        A failed write stays shown until the next successful write; previews never clear it. """
         try:
             fn(*args)
         except Exception as e:
             logging.warning("key colours: %s", e)
             self.error_label.setText(tr("KeyColours", "Could not talk to the keyboard: {}").format(e))
             self.error_label.show()
+            self.write_error = self.write_error or write
             return False
-        self.error_label.hide()
+        if write or not self.write_error:
+            self.error_label.hide()
+            self.write_error = False
         return True
 
     def _send_preview(self):
@@ -275,7 +282,7 @@ class KeyColoursEditor(BasicEditor):
                 self.history.record(led, old, new)
                 changes[led] = new
         if changes:
-            self._call(self.keyboard.set_key_colours, self.layer, changes)
+            self._call(self.keyboard.set_key_colours, self.layer, changes, write=True)
         self.refresh()
 
     # ---- painting ----
@@ -305,7 +312,7 @@ class KeyColoursEditor(BasicEditor):
         if entry is None:
             return
         layer, olds = entry
-        if not self._call(self.keyboard.set_key_colours, layer, olds):
+        if not self._call(self.keyboard.set_key_colours, layer, olds, write=True):
             # keep it so the user can retry once the keyboard answers again
             self.history.stack.append(entry)
         self.set_layer(layer)

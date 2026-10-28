@@ -1,3 +1,5 @@
+import math
+
 from PyQt5.QtCore import Qt, QSize, QPointF, QRectF, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QPalette
 from PyQt5.QtWidgets import QWidget, QApplication
@@ -31,6 +33,8 @@ class ColourKeyboardWidget(QWidget):
         self.layout_choice = lambda idx: 0
         self._stroking = False
         self._stroke_seen = set()
+        self._last_pos = QPointF()
+        self._step = 4.0         # hit-test spacing along a drag, about a quarter key width
 
     def set_keyboard(self, keys, leds, layout_choice=None):
         self.layout_choice = layout_choice or (lambda idx: 0)
@@ -87,6 +91,8 @@ class ColourKeyboardWidget(QWidget):
 
         self._key_widgets = widgets
         self._key_led = [by_pos.get((w.desc.row, w.desc.col)) for w in widgets]
+        if widgets:
+            self._step = max(1.0, min(w.polygon.boundingRect().width() for w in widgets) / 4)
 
         if widgets:
             box = widgets[0].polygon.boundingRect()
@@ -172,18 +178,39 @@ class ColourKeyboardWidget(QWidget):
             self._stroke_seen.add(led)
             self.stroke_painted.emit([led])
 
+    def _paint_to(self, end):
+        """ Paint every key along the segment from the last position, so fast drags skip nothing. """
+        start = self._last_pos
+        dx, dy = end.x() - start.x(), end.y() - start.y()
+        steps = max(1, int(math.ceil(math.hypot(dx, dy) / self._step)))
+        for i in range(1, steps + 1):
+            self._paint_at(QPointF(start.x() + dx * i / steps, start.y() + dy * i / steps))
+        self._last_pos = end
+
+    def _finish_stroke(self):
+        self._stroking = False
+        self.stroke_finished.emit()
+
     def mousePressEvent(self, ev):
         if ev.button() != Qt.LeftButton:
             return
+        if self._stroking:
+            # the previous release was lost
+            self._finish_stroke()
         self._stroking = True
         self._stroke_seen = set()
-        self._paint_at(ev.pos())
+        self._last_pos = QPointF(ev.pos())
+        self._paint_at(self._last_pos)
 
     def mouseMoveEvent(self, ev):
-        if self._stroking:
-            self._paint_at(ev.pos())
+        if not self._stroking:
+            return
+        if not ev.buttons() & Qt.LeftButton:
+            # the release went elsewhere (focus stolen, released outside the canvas)
+            self._finish_stroke()
+            return
+        self._paint_to(QPointF(ev.pos()))
 
     def mouseReleaseEvent(self, ev):
         if ev.button() == Qt.LeftButton and self._stroking:
-            self._stroking = False
-            self.stroke_finished.emit()
+            self._finish_stroke()

@@ -615,3 +615,12 @@ def test_tap_dance(qtbot):
     assert not tde.btn_save.isEnabled()
     assert td.tabText(td.currentIndex()) == "2"
     assert timeout_w.value() == 123
+
+
+def test_close_deactivates_current_tab(qtbot):
+    mw, vk = prepare(qtbot, FAKE_KEYBOARD)
+    assert mw.current_tab is not None
+    calls = []
+    mw.current_tab.editor.deactivate = lambda: calls.append(1)
+    mw.close()
+    assert calls == [1]

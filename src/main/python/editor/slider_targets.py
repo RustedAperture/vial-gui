@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 import logging
 
-from PyQt5.QtCore import QTimer
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import QRegularExpression, QTimer
+from PyQt5.QtGui import QColor, QRegularExpressionValidator
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget, QVBoxLayout, QColorDialog, QLineEdit, \
     QSpinBox, QSizePolicy, QDialog
 
@@ -12,7 +12,7 @@ from util import tr
 from vial_device import VialKeyboard
 from widgets.clickable_label import ClickableLabel
 
-NOTE_TEXT = "Assign the \"Next slider target\" key in the Keymap tab (it's under User/Custom)."
+NOTE_TEXT = "Assign the \"Next slider target\" key in the Keymap tab (it's in the User tab)."
 
 REFRESH_INTERVAL_MS = 1000
 DEFAULT_CONTROL = 62
@@ -36,6 +36,7 @@ class TargetRow:
         row.addWidget(self.marker)
 
         self.name = QLineEdit()
+        self.name.setValidator(QRegularExpressionValidator(QRegularExpression("[ -~]*"), self.name))
         self.name.editingFinished.connect(lambda: editor.on_name_edited(idx))
         row.addWidget(self.name, 1)
 

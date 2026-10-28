@@ -91,6 +91,7 @@ def test_rows_match_targets(qtbot):
     assert editor.rows[0].control.minimum() == 0 and editor.rows[0].control.maximum() == 127
     assert editor.note.text() == NOTE_TEXT
     assert "Next slider target" in NOTE_TEXT
+    assert "User tab" in NOTE_TEXT
 
 
 def test_edit_name_writes_full_list(qtbot):
@@ -216,3 +217,13 @@ def test_removed_row_does_not_write(qtbot):
     old.name.editingFinished.emit()
     old.control.setValue(100)
     assert sets(kb) == [[three()[0], three()[2]]]
+
+
+def test_name_rejects_non_ascii(qtbot):
+    from PyQt5.QtTest import QTest
+    editor, kb = make_editor(qtbot, FakeKeyboard(targets=three()))
+    name = editor.rows[0].name
+    name.clear()
+    QTest.keyClicks(name, "Musée")
+    assert name.text() == "Muse"
+    assert all(32 <= ord(ch) <= 126 for ch in name.text())

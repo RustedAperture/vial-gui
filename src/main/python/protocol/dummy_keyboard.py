@@ -89,6 +89,9 @@ class DummyKeyboard(Keyboard):
 
             self.rgb_supported_effects = {0, 1, 2, 3}
 
+    def reload_key_colours(self):
+        self.key_colours_supported = False
+
     def reload_rgb(self):
         if self.lighting_qmk_rgblight:
             self.underglow_brightness = 128

@@ -18,6 +18,7 @@ from protocol.constants import CMD_VIA_GET_PROTOCOL_VERSION, CMD_VIA_GET_KEYBOAR
     CMD_VIAL_LOCK, CMD_VIAL_QMK_SETTINGS_QUERY, CMD_VIAL_QMK_SETTINGS_GET, CMD_VIAL_QMK_SETTINGS_SET, \
     CMD_VIAL_QMK_SETTINGS_RESET, BUFFER_FETCH_CHUNK, VIAL_PROTOCOL_QMK_SETTINGS
 from protocol.dynamic import ProtocolDynamic
+from protocol.key_colours import ProtocolKeyColours
 from protocol.key_override import ProtocolKeyOverride
 from protocol.macro import ProtocolMacro
 from protocol.tap_dance import ProtocolTapDance
@@ -32,7 +33,8 @@ class ProtocolError(Exception):
     pass
 
 
-class Keyboard(ProtocolMacro, ProtocolDynamic, ProtocolTapDance, ProtocolCombo, ProtocolKeyOverride, ProtocolAltRepeatKey):
+class Keyboard(ProtocolMacro, ProtocolDynamic, ProtocolTapDance, ProtocolCombo, ProtocolKeyOverride, ProtocolAltRepeatKey,
+               ProtocolKeyColours):
     """ Low-level communication with a vial-enabled keyboard """
 
     def __init__(self, dev, usb_send=hid_send):
@@ -83,6 +85,7 @@ class Keyboard(ProtocolMacro, ProtocolDynamic, ProtocolTapDance, ProtocolCombo, 
         self.reload_macros_early()
         self.reload_persistent_rgb()
         self.reload_rgb()
+        self.reload_key_colours()
         self.reload_settings()
 
         self.reload_dynamic()
